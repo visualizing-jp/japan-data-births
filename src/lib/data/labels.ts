@@ -1,198 +1,72 @@
 /**
- * 住宅指標・形態カテゴリの表示定義。
+ * 出生指標の表示定義。
  */
 
-export type MetricKind = "count" | "rate" | "area";
-export type FormDim = "tenure" | "building" | "size" | "vacancy";
+export type MetricUnit = "count" | "per_mille" | "tfr" | "ratio" | "years";
 
 export interface MetricDef {
   code: string;
   label: string;
-  /** 時代リストのグループ表示用。 */
   group: string;
-  kind: MetricKind;
-  /** 基礎データ側の件数／面積コード。 */
-  countCode?: string;
-  /** 社会生活統計指標側の率コード。 */
-  rateCode?: string;
+  unit: MetricUnit;
   /** 地域ビューに載せるか。 */
   geo: boolean;
 }
 
-export interface FormCodeDef {
+/** 時代ビューの指標。 */
+export const ERA_METRICS: readonly MetricDef[] = [
+  { code: "birth_count", label: "出生数", group: "件数", unit: "count", geo: false },
+  { code: "birth_rate", label: "出生率", group: "率", unit: "per_mille", geo: true },
+  { code: "tfr", label: "合計特殊出生率", group: "率", unit: "tfr", geo: true },
+  { code: "sex_ratio", label: "出生性比", group: "性比", unit: "ratio", geo: false },
+  {
+    code: "avg_age_mother",
+    label: "母の平均年齢",
+    group: "平均年齢",
+    unit: "years",
+    geo: false,
+  },
+  {
+    code: "avg_age_father",
+    label: "父の平均年齢",
+    group: "平均年齢",
+    unit: "years",
+    geo: false,
+  },
+] as const;
+
+/** 地域ビューの指標（全国比が意味を持つもの）。 */
+export const GEO_METRICS: readonly MetricDef[] = ERA_METRICS.filter((m) => m.geo);
+
+/**
+ * 年齢ビュー: 件数コードと率コードが別物なので両方持つ。
+ * 率がある15〜49歳に限定。
+ */
+export const AGE_BANDS: readonly {
   code: string;
   label: string;
-  dim: FormDim;
-  /** SSDS 件数コード（vacancy 以外）。 */
-  countCode?: string;
-  level: number;
+  countCode: string;
+  rateCode: string;
+}[] = [
+  { code: "15-19", label: "15〜19歳", countCode: "00120", rateCode: "00290" },
+  { code: "20-24", label: "20〜24歳", countCode: "00130", rateCode: "00300" },
+  { code: "25-29", label: "25〜29歳", countCode: "00140", rateCode: "00310" },
+  { code: "30-34", label: "30〜34歳", countCode: "00150", rateCode: "00320" },
+  { code: "35-39", label: "35〜39歳", countCode: "00160", rateCode: "00330" },
+  { code: "40-44", label: "40〜44歳", countCode: "00170", rateCode: "00340" },
+  { code: "45-49", label: "45〜49歳", countCode: "00180", rateCode: "00350" },
+] as const;
+
+export const PREF_AREAS = [
+  "00000",
+  ...Array.from({ length: 47 }, (_, i) => String(i + 1).padStart(2, "0") + "000"),
+] as const;
+
+/** e-Stat 時間コード YYYY000000 → "YYYY" */
+export function yearFromTime(code: string): string {
+  return code.slice(0, 4);
 }
 
-/** 時代・地域の指標。 */
-export const METRICS: readonly MetricDef[] = [
-  {
-    code: "total",
-    label: "総住宅数",
-    group: "ストック",
-    kind: "count",
-    countCode: "H1100",
-    geo: false,
-  },
-  {
-    code: "occupied",
-    label: "居住世帯あり",
-    group: "ストック",
-    kind: "count",
-    countCode: "H1101",
-    geo: false,
-  },
-  {
-    code: "vacant",
-    label: "空き家",
-    group: "空き家",
-    kind: "count",
-    countCode: "H110202",
-    rateCode: "#H01405",
-    geo: true,
-  },
-  {
-    code: "owned",
-    label: "持ち家",
-    group: "所有",
-    kind: "count",
-    countCode: "H1310",
-    rateCode: "#H01301",
-    geo: true,
-  },
-  {
-    code: "rented",
-    label: "借家",
-    group: "所有",
-    kind: "count",
-    countCode: "H1320",
-    rateCode: "#H01302",
-    geo: true,
-  },
-  {
-    code: "rented_private",
-    label: "民営借家",
-    group: "所有",
-    kind: "count",
-    countCode: "H1322",
-    rateCode: "#H0130202",
-    geo: true,
-  },
-  {
-    code: "detached",
-    label: "一戸建",
-    group: "建て方",
-    kind: "count",
-    countCode: "H1401",
-    rateCode: "#H01401",
-    geo: true,
-  },
-  {
-    code: "row",
-    label: "長屋建",
-    group: "建て方",
-    kind: "count",
-    countCode: "H1402",
-    rateCode: "#H01402",
-    geo: true,
-  },
-  {
-    code: "apartment",
-    label: "共同住宅",
-    group: "建て方",
-    kind: "count",
-    countCode: "H1403",
-    rateCode: "#H01403",
-    geo: true,
-  },
-  {
-    code: "floor_area",
-    label: "1住宅当たり延べ面積",
-    group: "広さ",
-    kind: "area",
-    countCode: "H2130",
-    geo: true,
-  },
-] as const;
-
-/** 形態ビューのカテゴリ（所有・建て方・畳数）。空き家種類は別途年次表。 */
-export const FORM_CODES: readonly FormCodeDef[] = [
-  { code: "owned", label: "持ち家", dim: "tenure", countCode: "H1310", level: 1 },
-  { code: "rented_public", label: "公営・UR・公社", dim: "tenure", countCode: "H1321", level: 1 },
-  { code: "rented_private", label: "民営借家", dim: "tenure", countCode: "H1322", level: 1 },
-  { code: "rented_issued", label: "給与住宅", dim: "tenure", countCode: "H1323", level: 1 },
-
-  { code: "detached", label: "一戸建", dim: "building", countCode: "H1401", level: 1 },
-  { code: "row", label: "長屋建", dim: "building", countCode: "H1402", level: 1 },
-  { code: "apartment", label: "共同住宅", dim: "building", countCode: "H1403", level: 1 },
-  { code: "other_build", label: "その他", dim: "building", countCode: "H1404", level: 1 },
-
-  { code: "tatami_lt6", label: "5.9畳以下", dim: "size", countCode: "H2101", level: 1 },
-  { code: "tatami_6_12", label: "6.0–11.9畳", dim: "size", countCode: "H2102", level: 1 },
-  { code: "tatami_12_18", label: "12.0–17.9畳", dim: "size", countCode: "H2103", level: 1 },
-  { code: "tatami_18_24", label: "18.0–23.9畳", dim: "size", countCode: "H2104", level: 1 },
-  { code: "tatami_24_30", label: "24.0–29.9畳", dim: "size", countCode: "H2105", level: 1 },
-  { code: "tatami_30_36", label: "30.0–35.9畳", dim: "size", countCode: "H2106", level: 1 },
-  { code: "tatami_36_48", label: "36.0–47.9畳", dim: "size", countCode: "H2107", level: 1 },
-  { code: "tatami_48p", label: "48.0畳以上", dim: "size", countCode: "H2108", level: 1 },
-
-  { code: "secondary", label: "二次的住宅", dim: "vacancy", level: 1 },
-  { code: "for_rent", label: "賃貸用", dim: "vacancy", level: 1 },
-  { code: "for_sale", label: "売却用", dim: "vacancy", level: 1 },
-  { code: "other_vacant", label: "その他の空き家", dim: "vacancy", level: 1 },
-] as const;
-
-export const FORM_DIMS: readonly { id: FormDim; label: string }[] = [
-  { id: "tenure", label: "所有" },
-  { id: "building", label: "建て方" },
-  { id: "size", label: "広さ" },
-  { id: "vacancy", label: "空き家" },
-] as const;
-
-/** 空き家種類：年次表ごとの生コード → 正規化コード。 */
-export const VACANT_CODE_MAP: Record<
-  string,
-  Partial<Record<"secondary" | "for_rent" | "for_sale" | "other_vacant" | "vacant_total", string>>
-> = {
-  "2013": {
-    vacant_total: "00008",
-    secondary: "00009",
-    for_rent: "00012",
-    for_sale: "00013",
-    other_vacant: "00014",
-  },
-  "2018": {
-    vacant_total: "22",
-    secondary: "221",
-    for_rent: "222",
-    for_sale: "223",
-    other_vacant: "224",
-  },
-  // 2023 は二次的とその他のコード意味が入れ替わっている（docs/data-sources.md）
-  "2023": {
-    vacant_total: "22",
-    secondary: "224",
-    for_rent: "222",
-    for_sale: "223",
-    other_vacant: "221",
-  },
-};
-
-export const SURVEY_YEARS = [
-  "1978",
-  "1983",
-  "1988",
-  "1993",
-  "1998",
-  "2003",
-  "2008",
-  "2013",
-  "2018",
-  "2023",
-] as const;
-
-export const VACANT_YEARS = ["2013", "2018", "2023"] as const;
+export function timeFromYear(year: string): string {
+  return `${year}000000`;
+}

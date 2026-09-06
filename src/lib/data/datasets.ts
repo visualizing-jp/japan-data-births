@@ -11,74 +11,39 @@ export interface DatasetDef {
   query?: Record<string, string>;
 }
 
-/** 基礎データの件数コード（カンマ区切り、仕様上限100）。 */
-const COUNT_CODES = [
-  "H1100",
-  "H1101",
-  "H1102",
-  "H110202",
-  "H1310",
-  "H1320",
-  "H1321",
-  "H1322",
-  "H1323",
-  "H1401",
-  "H1402",
-  "H1403",
-  "H1404",
-  "H2130",
-  "H2101",
-  "H2102",
-  "H2103",
-  "H2104",
-  "H2105",
-  "H2106",
-  "H2107",
-  "H2108",
-].join(",");
-
-/** 社会生活統計指標の率コード。 */
-const RATE_CODES = [
-  "#H01301",
-  "#H01302",
-  "#H0130202",
-  "#H01401",
-  "#H01402",
-  "#H01403",
-  "#H01405",
-].join(",");
+/** 4-1 から出生数総数・率・性比・TFR だけ取る。 */
+const BIRTHS_YEAR_CODES = ["00100", "00130", "00140", "00150"].join(",");
 
 export const DATASETS = {
-  ssdsCount: {
-    key: "ssds-count",
-    statsDataId: "0000010108",
-    label: "社会・人口統計体系 基礎データ Ｈ居住（件数・延べ面積・畳数）",
-    query: { cdCat01: COUNT_CODES },
+  birthsYear: {
+    key: "births-year",
+    statsDataId: "0003411595",
+    label: "上巻 年次別にみた出生数・出生率・出生性比及び合計特殊出生率",
+    query: { cdCat01: BIRTHS_YEAR_CODES },
   },
 
-  ssdsRate: {
-    key: "ssds-rate",
-    statsDataId: "0000010208",
-    label: "社会・人口統計体系 社会生活統計指標 Ｈ居住（比率）",
-    query: { cdCat01: RATE_CODES },
+  avgAge: {
+    key: "avg-age",
+    statsDataId: "0003411609",
+    label: "上巻 出生順位別にみた年次別父・母の平均年齢",
   },
 
-  vacant2013: {
-    key: "vacant-2013",
-    statsDataId: "0003095315",
-    label: "住宅・土地統計調査 2013 居住世帯の有無(9区分)",
+  ageMother: {
+    key: "age-mother",
+    statsDataId: "0003411599",
+    label: "上巻 母の年齢（5歳階級）別にみた年次別出生数・百分率及び出生率",
   },
 
-  vacant2018: {
-    key: "vacant-2018",
-    statsDataId: "0003326560",
-    label: "住宅・土地統計調査 2018 居住世帯の有無(9区分)",
+  geoBirth: {
+    key: "geo-birth",
+    statsDataId: "0003411597",
+    label: "上巻 都道府県別にみた年次別出生数・出生率",
   },
 
-  vacant2023: {
-    key: "vacant-2023",
-    statsDataId: "0004015740",
-    label: "住宅・土地統計調査 2023 居住世帯の有無(9区分)",
+  geoTfr: {
+    key: "geo-tfr",
+    statsDataId: "0003411598",
+    label: "上巻 都道府県別にみた年次別合計特殊出生率",
   },
 } as const satisfies Record<string, DatasetDef>;
 

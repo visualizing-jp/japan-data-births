@@ -2,8 +2,6 @@
 
 人口動態統計をもとに、出生数・出生率・TFR・母親の年齢を探索するダッシュボード。
 
-骨格のみ（タブは準備中）。データ接続・チャート実装は未着手。
-
 visualizing.jp スタンドアロン（dataviz.jp サブスクツールではない）。
 
 想定URL: https://japan-data-births.visualizing.jp
@@ -11,22 +9,29 @@ visualizing.jp スタンドアロン（dataviz.jp サブスクツールではな
 ## 開発
 
 ```bash
-cp .env.example .env   # Phase 2 で ESTAT_APP_ID を設定（必要時）
+cp .env.example .env   # ESTAT_APP_ID を設定
 npm install
+npm run meta && npm run fetch && npm run data && npm run verify
 npm run dev
 ```
 
 | スクリプト | 内容 |
 | --- | --- |
-| `npm run meta` | e-Stat メタ情報（未接続） |
-| `npm run fetch` | e-Stat 生データ取得（未接続） |
-| `npm run data` | 配信用 cube 構築（未接続） |
+| `npm run meta` | e-Stat メタ情報 |
+| `npm run fetch` | e-Stat 生データ取得 |
+| `npm run data` | 配信用 cube 構築 |
 | `npm run verify` | 健全性チェック |
 | `npm run dev` | Vite 開発サーバ |
 | `npm run build` | 本番ビルド |
 | `npm run typecheck` | TypeScript 検査 |
 
 データ設計の正本は [`docs/data-sources.md`](docs/data-sources.md)。
+
+## ビュー
+
+- **時代** — 出生数・出生率・TFR・出生性比・父母の平均年齢
+- **母親年齢** — 年齢5歳階級別の出生数・出生率
+- **地域** — 47都道府県の出生率・合計特殊出生率
 
 ## GitHub Pages / DNS
 

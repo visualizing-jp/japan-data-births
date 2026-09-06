@@ -1,10 +1,10 @@
 /**
- * 地域ビュー。都道府県 × 住宅指標の相対比較。
+ * 地域ビュー。都道府県 × 出生率・合計特殊出生率。
  */
 
 import { use, useMemo, useState } from "react";
 import { loadGeo } from "../data/chunks.ts";
-import { geoMetrics } from "../data/hierarchy.ts";
+import { geoMetrics, unitOf } from "../data/hierarchy.ts";
 import { AreaTypes, type StandoutRow } from "../components/AreaTypes.tsx";
 import { TypePicker, type PickerRow } from "../components/TypePicker.tsx";
 import { TileMap, type Tile } from "../components/TileMap.tsx";
@@ -17,19 +17,31 @@ const one = new Intl.NumberFormat("ja-JP", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const pct = new Intl.NumberFormat("ja-JP", {
+const rateFmt = new Intl.NumberFormat("ja-JP", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
-const areaFmt = new Intl.NumberFormat("ja-JP", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
+const tfrFmt = new Intl.NumberFormat("ja-JP", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 function formatValue(metric: string, value: number | null): string {
   if (value === null) return "データなし";
-  if (metric === "floor_area") return `${areaFmt.format(value)}㎡`;
-  return `${pct.format(value * 100)}%`;
+  switch (unitOf(metric)) {
+    case "per_mille":
+      return `${rateFmt.format(value)}‰`;
+    case "tfr":
+      return tfrFmt.format(value);
+    default:
+      return String(value);
+  }
+}
+
+function barMagnitude(metric: string, value: number | null): number {
+  if (value === null) return 0;
+  if (unitOf(metric) === "tfr") return Math.round(value * 1000);
+  return Math.round(value * 1000);
 }
 
 function Headline({
@@ -80,7 +92,7 @@ export function GeoView() {
   const selectable = useMemo(() => geoMetrics(metrics), [metrics]);
 
   const [year, setYear] = useUrlState("year", years[0]!, (v) => years.includes(v));
-  const [metric, setMetric] = useUrlState<string>("metric", "vacant", (v) =>
+  const [metric, setMetric] = useUrlState<string>("metric", "tfr", (v) =>
     selectable.some((c) => c.code === v),
   );
   const [area, setArea] = useUrlState<string>("area", "", (v) =>
@@ -98,12 +110,10 @@ export function GeoView() {
   const picker = useMemo((): PickerRow[] => {
     return selectable.map((m) => {
       const v = cube.at("value", { metric: m.code, year, area: "00000" });
-      const magnitude =
-        v === null ? 0 : m.code === "floor_area" ? v * 100 : Math.round(v * 10000);
       return {
         code: m.code,
         label: m.label,
-        households: magnitude,
+        households: barMagnitude(m.code, v),
         display: formatValue(m.code, v),
       };
     });
@@ -120,11 +130,11 @@ export function GeoView() {
           code: a.code,
           label: a.label,
           relative,
-          households: value === null ? null : Math.round(value * 10000),
+          households: barMagnitude(metric, value),
           certain,
         };
       }),
-    [prefectures, relatives, values],
+    [prefectures, relatives, values, metric],
   );
 
   const ranked = useMemo(
@@ -164,12 +174,12 @@ export function GeoView() {
         area: areas[areaIndex]!.code,
       });
       if (relative === null || value === null) return [];
-      if (Math.abs(relative - 1) < 0.08) return [];
+      if (Math.abs(relative - 1) < 0.05) return [];
       return [
         {
           code: m.code,
           label: m.label,
-          households: Math.round(value * 10000),
+          households: barMagnitude(m.code, value),
           relative,
         } satisfies StandoutRow,
       ];
@@ -205,7 +215,7 @@ export function GeoView() {
           <TypePicker rows={picker} selected={metric} onSelect={setMetric} />
         </div>
         <p className="mt-2 border-t border-rule px-2 pt-2 text-[10.5px] leading-relaxed text-faint">
-          地図の色は全国比。率・面積とも同じ相対尺度。
+          地図の色は全国比。出生率・TFRとも同じ相対尺度。
         </p>
       </aside>
 

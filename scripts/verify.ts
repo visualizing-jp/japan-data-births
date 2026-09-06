@@ -25,9 +25,8 @@ interface EraFile extends CubeJson {
   metrics: DictEntry[];
 }
 
-interface FormFile extends CubeJson {
-  formDims: DictEntry[];
-  codes: DictEntry[];
+interface AgeFile extends CubeJson {
+  ages: DictEntry[];
 }
 
 interface GeoFile extends CubeJson {
@@ -36,65 +35,101 @@ interface GeoFile extends CubeJson {
 }
 
 const eraRaw = JSON.parse(await readFile(resolve(DATA, "era.json"), "utf8")) as EraFile;
-const formRaw = JSON.parse(await readFile(resolve(DATA, "form.json"), "utf8")) as FormFile;
+const ageRaw = JSON.parse(await readFile(resolve(DATA, "age.json"), "utf8")) as AgeFile;
 const geoRaw = JSON.parse(await readFile(resolve(DATA, "geo.json"), "utf8")) as GeoFile;
 
 const era = new CubeView(eraRaw);
-const form = new CubeView(formRaw);
+const age = new CubeView(ageRaw);
 const geo = new CubeView(geoRaw);
 
-const total2023 = era.at("dwellings", { metric: "total", year: "2023" });
+const births2024 = era.at("value", { metric: "birth_count", year: "2024" });
 ok(
-  "era 2023 総住宅数が妥当",
-  total2023 !== null && total2023 > 60_000_000 && total2023 < 70_000_000,
-  String(total2023),
+  "era 2024 出生数が妥当",
+  births2024 !== null && births2024 > 600_000 && births2024 < 900_000,
+  String(births2024),
 );
 
-const vacantRate2023 = era.at("rate", { metric: "vacant", year: "2023" });
+const births1973 = era.at("value", { metric: "birth_count", year: "1973" });
 ok(
-  "era 2023 空き家率≈13.8%",
-  vacantRate2023 !== null && near(vacantRate2023, 0.138, 0.005),
-  String(vacantRate2023),
+  "era 第2次ベビーブーム近傍の出生数が2024より多い",
+  births1973 !== null && births2024 !== null && births1973 > births2024,
+  `${births1973} → ${births2024}`,
 );
 
-const ownedRate2023 = era.at("rate", { metric: "owned", year: "2023" });
+const tfr2024 = era.at("value", { metric: "tfr", year: "2024" });
 ok(
-  "era 2023 持ち家比率≈60.9%",
-  ownedRate2023 !== null && near(ownedRate2023, 0.609, 0.01),
-  String(ownedRate2023),
+  "era 2024 TFR≈1.1〜1.3",
+  tfr2024 !== null && tfr2024 > 1.0 && tfr2024 < 1.4,
+  String(tfr2024),
 );
 
-const vacant1978 = era.at("rate", { metric: "vacant", year: "1978" });
+const tfr1970 = era.at("value", { metric: "tfr", year: "1970" });
 ok(
-  "era 空き家率が上昇 (1978→2023)",
-  vacant1978 !== null && vacantRate2023 !== null && vacantRate2023 > vacant1978,
-  `${vacant1978} → ${vacantRate2023}`,
+  "era TFRが長期で低下 (1970→2024)",
+  tfr1970 !== null && tfr2024 !== null && tfr2024 < tfr1970,
+  `${tfr1970} → ${tfr2024}`,
 );
 
-const tenureSum = ["owned", "rented_public", "rented_private", "rented_issued"].reduce(
-  (n, code) => n + (form.at("share", { dim: "tenure", code, year: "2023" }) ?? 0),
-  0,
+const mother2024 = era.at("value", { metric: "avg_age_mother", year: "2024" });
+const mother1970 = era.at("value", { metric: "avg_age_mother", year: "1970" });
+ok(
+  "era 母の平均年齢が上昇",
+  mother2024 !== null &&
+    mother1970 !== null &&
+    mother2024 > mother1970 &&
+    mother2024 > 30 &&
+    mother2024 < 35,
+  `${mother1970} → ${mother2024}`,
 );
-ok("form 2023 所有 share 合計≈1", near(tenureSum, 1, 0.05), String(tenureSum));
 
-const vacantShareSum = ["secondary", "for_rent", "for_sale", "other_vacant"].reduce(
-  (n, code) => n + (form.at("share", { dim: "vacancy", code, year: "2023" }) ?? 0),
-  0,
+const sexRatio = era.at("value", { metric: "sex_ratio", year: "2024" });
+ok(
+  "era 2024 出生性比が105前後",
+  sexRatio !== null && sexRatio > 100 && sexRatio < 110,
+  String(sexRatio),
 );
-ok("form 2023 空き家種類 share 合計≈1", near(vacantShareSum, 1, 0.05), String(vacantShareSum));
+
+ok("age 年齢階級が7", ageRaw.ages.length === 7, String(ageRaw.ages.length));
+
+const count2529 = age.at("count", { age: "25-29", year: "2024" });
+const count4044 = age.at("count", { age: "40-44", year: "2024" });
+ok(
+  "age 2024 25-29歳の出生数が40-44歳より多い",
+  count2529 !== null && count4044 !== null && count2529 > count4044,
+  `25-29 ${count2529} / 40-44 ${count4044}`,
+);
+
+const rate2529 = age.at("rate", { age: "25-29", year: "2024" });
+ok(
+  "age 2024 25-29歳出生率が正",
+  rate2529 !== null && rate2529 > 0,
+  String(rate2529),
+);
 
 ok("geo 都道府県が47+全国", geoRaw.areas.length === 48, String(geoRaw.areas.length));
 
-const tokyoVacant = geo.at("value", { metric: "vacant", year: "2023", area: "13000" });
-const nationalVacant = geo.at("value", { metric: "vacant", year: "2023", area: "00000" });
+const tokyoRate = geo.at("value", { metric: "birth_rate", year: "2024", area: "13000" });
+const nationalRate = geo.at("value", { metric: "birth_rate", year: "2024", area: "00000" });
 ok(
-  "geo 東京の空き家率が全国と異なる",
-  tokyoVacant !== null && nationalVacant !== null && tokyoVacant !== nationalVacant,
-  `東京 ${tokyoVacant} / 全国 ${nationalVacant}`,
+  "geo 東京の出生率が全国と異なる",
+  tokyoRate !== null && nationalRate !== null && tokyoRate !== nationalRate,
+  `東京 ${tokyoRate} / 全国 ${nationalRate}`,
 );
 
-const relNat = geo.at("relative", { metric: "vacant", year: "2023", area: "00000" });
-ok("geo 全国 relative=1", relNat === 1, String(relNat));
+const okinawaTfr = geo.at("value", { metric: "tfr", year: "2024", area: "47000" });
+const nationalTfr = geo.at("value", { metric: "tfr", year: "2024", area: "00000" });
+ok(
+  "geo 沖縄のTFRが全国より高い傾向",
+  okinawaTfr !== null && nationalTfr !== null && okinawaTfr > nationalTfr,
+  `沖縄 ${okinawaTfr} / 全国 ${nationalTfr}`,
+);
+
+const relNat = geo.at("relative", { metric: "birth_rate", year: "2024", area: "00000" });
+ok(
+  "geo 全国 relative=1",
+  relNat === 1 || (relNat !== null && near(relNat, 1, 0.001)),
+  String(relNat),
+);
 
 if (failed > 0) {
   console.error(`\n${failed} checks failed`);

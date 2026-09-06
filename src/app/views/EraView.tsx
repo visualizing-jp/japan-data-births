@@ -1,27 +1,27 @@
 /**
- * 時代ビュー。住宅ストックの件数・率・構成比の長期推移。
+ * 時代ビュー。出生数・率・TFR・性比・父母平均年齢の長期推移。
  */
 
 import { use, useMemo, useState } from "react";
 import { loadEra } from "../data/chunks.ts";
-import { listMetrics } from "../data/hierarchy.ts";
+import { listMetrics, unitOf } from "../data/hierarchy.ts";
 import { MARKS, NOTES } from "../data/annotations.ts";
 import { TypeList } from "../components/TypeList.tsx";
 import { TrendStack, type Panel, type Point } from "../components/TrendStack.tsx";
 import { useWidth } from "../hooks/useWidth.ts";
 import { useUrlState } from "../hooks/useUrlState.ts";
 
-const FROM = 1978;
-const TO = 2023;
+const FROM = 1899;
+const TO = 2024;
 
 const int = new Intl.NumberFormat("ja-JP");
-const pct = new Intl.NumberFormat("ja-JP", {
+const one = new Intl.NumberFormat("ja-JP", {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
 });
-const areaFmt = new Intl.NumberFormat("ja-JP", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
+const two = new Intl.NumberFormat("ja-JP", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 function dense(years: number[], values: (number | null)[]): Point[] {
@@ -32,10 +32,55 @@ function dense(years: number[], values: (number | null)[]): Point[] {
   }));
 }
 
+function formatValue(code: string, v: number): string {
+  switch (unitOf(code)) {
+    case "count":
+      return int.format(Math.round(v));
+    case "per_mille":
+      return `${one.format(v)}‰`;
+    case "tfr":
+      return two.format(v);
+    case "ratio":
+      return one.format(v);
+    case "years":
+      return `${two.format(v)}歳`;
+  }
+}
+
+function formatTick(code: string, v: number): string {
+  switch (unitOf(code)) {
+    case "count":
+      return v >= 10_000 ? `${int.format(Math.round(v / 10_000))}万` : int.format(v);
+    case "per_mille":
+    case "ratio":
+      return one.format(v);
+    case "tfr":
+      return two.format(v);
+    case "years":
+      return one.format(v);
+  }
+}
+
+function panelTitle(code: string): { title: string; unit: string } {
+  switch (unitOf(code)) {
+    case "count":
+      return { title: "件数", unit: "人" };
+    case "per_mille":
+      return { title: "人口千対", unit: "‰" };
+    case "tfr":
+      return { title: "合計特殊出生率", unit: "人" };
+    case "ratio":
+      return { title: "女児100に対する男児", unit: "" };
+    case "years":
+      return { title: "平均年齢", unit: "歳" };
+  }
+}
+
 export function EraView() {
   const { metrics, cube, years } = use(loadEra());
   const selectable = useMemo(() => listMetrics(metrics), [metrics]);
-  const defaultMetric = selectable.find((m) => m.code === "vacant")?.code ?? selectable[0]!.code;
+  const defaultMetric =
+    selectable.find((m) => m.code === "tfr")?.code ?? selectable[0]!.code;
 
   const [metric, setMetric] = useUrlState<string>("metric", defaultMetric, (v) =>
     selectable.some((c) => c.code === v),
@@ -44,108 +89,38 @@ export function EraView() {
   const [ref, width] = useWidth<HTMLDivElement>();
 
   const current = selectable.find((c) => c.code === metric)!;
-  const isArea = metric === "floor_area";
 
   const rows = useMemo(
     () =>
       selectable.map((c) => ({
         type: c,
-        values:
-          c.code === "floor_area"
-            ? cube.series("rate", "year", { metric: c.code })
-            : cube.series("rate", "year", { metric: c.code }).some((v) => v !== null)
-              ? cube.series("rate", "year", { metric: c.code })
-              : cube.series("share", "year", { metric: c.code }),
+        values: cube.series("value", "year", { metric: c.code }),
       })),
     [selectable, cube],
   );
 
   const panels = useMemo((): Panel[] => {
-    const at = (measure: string) => cube.series(measure, "year", { metric });
-
-    if (isArea) {
-      return [
-        {
-          key: "area",
-          title: "1住宅当たり延べ面積",
-          unit: "㎡",
-          format: (v) => `${areaFmt.format(v)}㎡`,
-          formatTick: (v) => areaFmt.format(v),
-          series: [
-            {
-              key: "area",
-              label: "",
-              points: dense(years, at("rate")),
-              emphasized: true,
-              markSparseSamples: true,
-            },
-          ],
-        },
-      ];
-    }
-
-    const panels: Panel[] = [
+    const series = cube.series("value", "year", { metric });
+    const meta = panelTitle(metric);
+    return [
       {
-        key: "dwellings",
-        title: "住宅数",
-        unit: "戸",
-        format: (v) => int.format(Math.round(v)),
-        formatTick: (v) =>
-          v >= 1_000_000 ? `${int.format(Math.round(v / 10_000))}万` : int.format(v),
+        key: "value",
+        title: meta.title,
+        unit: meta.unit,
+        format: (v) => formatValue(metric, v),
+        formatTick: (v) => formatTick(metric, v),
         series: [
           {
-            key: "dwellings",
+            key: "value",
             label: "",
-            points: dense(years, at("dwellings")),
+            points: dense(years, series),
             emphasized: true,
             markSparseSamples: true,
           },
         ],
       },
     ];
-
-    const rates = at("rate");
-    if (rates.some((v) => v !== null)) {
-      panels.push({
-        key: "rate",
-        title: "率",
-        unit:
-          metric === "vacant"
-            ? "総住宅数に占める割合"
-            : "居住世帯あり住宅に占める割合",
-        format: (v) => `${pct.format(v * 100)}%`,
-        formatTick: (v) => `${pct.format(v * 100)}%`,
-        series: [
-          {
-            key: "rate",
-            label: "",
-            points: dense(years, rates),
-            emphasized: true,
-            markSparseSamples: true,
-          },
-        ],
-      });
-    } else {
-      panels.push({
-        key: "share",
-        title: "構成比",
-        unit: "分母に占める割合",
-        format: (v) => `${pct.format(v * 100)}%`,
-        formatTick: (v) => `${pct.format(v * 100)}%`,
-        series: [
-          {
-            key: "share",
-            label: "",
-            points: dense(years, at("share")),
-            emphasized: true,
-            markSparseSamples: true,
-          },
-        ],
-      });
-    }
-
-    return panels;
-  }, [cube, metric, years, isArea]);
+  }, [cube, metric, years]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1240px] gap-8 px-6 py-6 max-lg:flex-col-reverse">
@@ -157,7 +132,7 @@ export function EraView() {
           <TypeList rows={rows} years={years} selected={metric} onSelect={setMetric} />
         </div>
         <p className="px-2 pt-3 text-[10.5px] leading-relaxed text-faint">
-          折れ線は率（または構成比）の推移。高さは項目ごとに正規化してある。
+          折れ線は指標の推移。高さは項目ごとに正規化してある。
         </p>
       </aside>
 
@@ -173,7 +148,7 @@ export function EraView() {
           </div>
         </header>
 
-        <div ref={ref} className="min-h-[420px]">
+        <div ref={ref} className="min-h-[220px]">
           {width > 0 && (
             <TrendStack
               panels={panels}
